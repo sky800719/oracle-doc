@@ -1,0 +1,33 @@
+> disk.tmp
+
+for diskname in $(cd /dev/ && ls sd*);
+do
+	diskinfo=`fdisk -l /dev/$diskname | grep "Disk /dev/$diskname"`
+	scsiinfo=`/sbin/scsi_id --whitelisted --replace-whitespace --device=/dev/$diskname`
+	echo $scsiinfo " "$diskinfo | awk -F',' '{print $1}' >> disk.tmp
+done
+
+sort disk.tmp > disk.result
+
+rm -f disk.tmp
+
+last_scsiid=''
+current_scsiid=''
+
+while read disk
+do
+	current_scsiid=`echo $disk | awk '{print $1}'`
+
+	if [ "${current_scsiid}" = "${last_scsiid}" ];
+	then
+		echo $disk
+	else
+		echo "-----------------------------------------------------------------------------------------------------------"
+		echo "multipath -> " `multipath -l | grep "${current_scsiid}"`
+		echo "udev      -> "`ls -la /dev/disk/by-id/* | grep dm-uuid-mpath-"${current_scsiid}" | awk '{print $9,$10,$11}'`
+		echo $disk
+		last_scsiid=$current_scsiid
+	fi
+
+done < disk.result
+echo "-----------------------------------------------------------------------------------------------------------"

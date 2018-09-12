@@ -1,0 +1,233 @@
+--ASM特性
+Oracle ASM Filter Driver (Oracle ASMFD) rejects write I/O requests that are not issued by Oracle software. 
+Automatic Storage Management Administrator's Guide -> 20 Administering Oracle ASM Filter Driver
+
+su - root
+set ORACLE_HOME=/u01/app/12.2.0/grid
+set ORACLE_BASE=/tmp
+./u01/app/12.2.0/grid/bin/asmcmd afd_label DATA1 /dev/sdb --init
+./u01/app/12.2.0/grid/bin/asmcmd afd_lslbl /dev/sdb
+
+
+
+--ORAchk 
+./orachk -profile preinstall
+./orachk -u -o pre
+
+--禁用安装用户crontab
+
+--Load SSH Key
+$ exec /usr/bin/ssh-agent $SHELL
+$ /usr/bin/ssh-add
+
+
+$ /u01/app/12.2.0/grid/bin/cluvfy stage -post crsinst -n node1,node2
+
+--HP-UX
+# cd $ORACLE_HOME/rdbms/admin/
+# vi externaljob.ora
+
+run_user=extproc
+run_group=other
+
+--Oracle User Environment
+export ORACLE_BASE=/u01/app/oracle
+export ORACLE_HOME=/u01/app/oracle/12.2.0/dbhome_1
+export PATH=$PATH:$ORACLE_HOME/bin
+export ORACLE_SID=sales1
+
+--Recompiling All Invalid Objects
+SQL> @Oracle_home/rdbms/admin/utlrp.sql
+
+--add services to a PDB
+srvctl add service -d cdbname -s service_name -pdb pdbname
+
+--Oracle Configuration Manager
+$ORACLE_HOME/ccr/admin/scripts/installCCRSQL.sh collectconfig -s SID -r\ 
+SYSDBA-USER -p SYSDBA-PASSWORD
+
+--Enabling and Disabling Oracle Database Options
+cd $ORACLE_HOME/bin
+srvctl stop database -d Sales
+chopt enable oaa
+srvctl start database -d Sales
+
+--Change Time Zone
+srvctl setenv database -env 'TZ=time zone'
+
+--LREG进程从12.2开始负责注册监听
+
+--DBCA no longer sets the LOCAL_LISTENER parameter. The Oracle Clusterware agent that starts the database sets the LOCAL_LISTENER parameter dynamically, and it sets it to the actual value, not an alias.
+--The REMOTE_LISTENER parameter is configured by DBCA to reference the SCAN and SCAN port, without any need for a tnsnames.ora entry.
+
+--DEINSTALL TOOL
+$ ./runInstaller -deinstall -home /u01/app/oracle/product/12.2.0/dbhome_1/
+
+--DBCA Silent
+# su oracle -c "$ORACLE_HOME/bin/dbca -silent -createDatabase -templateName
+General_Purpose.dbc -gdbName $DBNAME -sid $ORACLE_SID -sysPassword password
+-systemPassword password -sysmanPassword password -dbsnmpPassword password
+-emConfiguration LOCAL -storageType ASM -diskGroupName ASMgrp1
+-datafileJarLocation $ORACLE_HOME/assistants/dbca/templates -nodeinfo
+node1,node2 -characterset WE8ISO8859P1 -obfuscatedPasswords false -sampleSchema
+false -asmSysPassword password"
+
+gridSetup.sh -executeConfigTools -responseFile Grid_home/install/response/product_timestamp.rsp
+runInstaller -executeConfigTools -responseFile ORACLE_HOME/install/response/product_timestamp.rsp
+
+$ $ORACLE_HOME/bin/netca -silent -responsefile /local_dir/netca.rsp
+
+
+
+$ oracle_home/bin/srvctl stop database -db db_name
+$ u01/app/grid/12.2.0/bin/srvctl stop nodeapps -node node
+# crsctl stop cluster
+# crsctl stop cluster -all
+
+$ORACLE_HOME/install/portlist.ini
+
+--Rapid Home Provisioning Server (RHPS)
+
+--安装环境要求：
+内存：8G
+--	Oracle recommends that you disable Transparent HugePages and use standard HugePages for enhanced performance.
+
+--Disabling Transparent HugePages
+
+# cat /sys/kernel/mm/redhat_transparent_hugepage/enabled
+# cat /sys/kernel/mm/transparent_hugepage/enabled
+
+vi /etc/grub.conf
+      kernel /vmlinuz-2.6.32-300.25.1.el6uek.x86_64 ro root=LABEL=/ transparent_hugepage=never
+
+
+空间：
+/tmp: 2G
+swap: 16G
+HugePages 
+/grid：最小 12G, 建议 100G
+ORACLE BASE：最小 3.5G
+/oracle：最小 7.5G
+
+# grep MemTotal /proc/meminfo
+# grep SwapTotal /proc/meminfo
+# df -h /tmp
+# free
+# uname -m
+# df -h /dev/shm
+
+./orachk -u -o pre
+
+网络：
+Public network：TCP/IP bond 1Gb
+Private network：UDP HAIP 1Gb Jumbo Frames
+Oracle Flex ASM Network：TCP 
+Cluster name：(a to z, A to Z, and 0 to 9, and -)
+
+192.168.0.[0-255]/255.255.255.0
+192.168.[0-255].[0-255]/255.255.0.0
+
+--HAIP
+Each private interface should be on a different subnet.
+
+
+内核：
+# cat /etc/oracle-release
+# cat /etc/redhat-release
+# cat /etc/SuSE-release
+# lsb_release -id
+
+# uname -r
+
+# cd /etc/yum.repos.d/ 
+wget http://public-yum.oracle.com/public-yum-ol6.repo
+
+# yum install oracle-database-server-12cR2-preinstall
+# sysctl -p
+/var/log/oracle-database-server-12cR2-preinstall/backup/timestamp/orakernel.log
+
+--cvuqdisk 
+# rpm -qi cvuqdisk
+# CVUQDISK_GRP=oinstall; export CVUQDISK_GRP
+
+--Name Service Cache Daemon 提高网络错误容错
+# chkconfig --level 35 nscd on
+# service nscd start
+
+# vi ~/.ssh/config
+
+Host * 
+    ForwardX11 no
+
+# vi ~/.bash_profile
+
+if [ -t 0 ]; then
+   stty intr ^C
+fi
+
+systemctl --all |grep nscd
+
+--rp_filter
+--eth1 and eth2 are the private interconnect NICs, and eth0 is the public network NIC
+net.ipv4.conf.eth2.rp_filter = 2
+net.ipv4.conf.eth1.rp_filter = 2
+net.ipv4.conf.eth0.rp_filter = 1
+
+--Disk I/O Scheduler
+# cat /sys/block/${ASM_DISK}/queue/scheduler
+noop [deadline] cfq
+
+# vi /etc/udev/rules.d/60-oracle-schedulers.rules
+ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="deadline"
+# udevadm control --reload-rules
+
+# vi /etc/ssh/sshd_config
+LoginGraceTime 0
+
+--NTP
+
+--RHEL6
+# /sbin/service ntpd stop
+# chkconfig ntpd off
+# mv /etc/ntp.conf /etc/ntp.conf.org
+# rm /var/run/ntpd.pid
+
+--RHEL7
+# systemctl stop chronyd
+# systemctl disable chronyd
+
+$ crsctl check ctss
+
+/gridSetup.sh oracle_install_crs_Ping_Targets=192.0.2.1,192.0.2.2
+
+--Resource Limits for Oracle Clusterware
+$Grid_home/crs/install/s_crsconfig_nodename_env.txt
+
+runcluvfy.sh stage -pre crsinst -upgrade [-rolling] 
+-src_crshome src_Gridhome ]-dest_crshome dest_Gridhome -dest_version dest_release
+[-fixup][-fixupnoexec][-method sudo -user user_name [-location dir_path][-method root][-verbose]
+
+$ ./runcluvfy.sh stage -pre crsinst -upgrade -rolling -src_crshome 
+/u01/app/11.2.0/grid -dest_crshome /u01/app/12.2.0/grid -dest_version
+12.2.0.1 -fixup -verbose
+
+--安装失败清理
+Grid_home/deinstall/deinstall -local
+Grid_home/bin/crsctl delete node -n node_name
+
+
+
+--节点1继续安装
+[root@node1]# cd /u01/app/oraInventory
+[root@node1]# ./orainstRoot.sh
+[root@node1]# cd /u01/app/12.1.0/grid
+[root@node1]# ./root.sh
+
+[grid@node1]$ gridSetup.sh -executeConfigTools -responseFile Oracle_home/install/response/gridinstall.rsp
+
+
+http://www.jydba.net/oracle-12c-grid-infrastructure-for-a-standalone-server-with-a-new-database-on-oracle-linux-7/
+
+KERNEL=="sd*[!0-9]", ENV{DEVTYPE}=="disk", SUBSYSTEM=="block",  PROGRAM=="/usr/lib/udev/scsi_id -g -u -d $devnode",  RESULT=="36000c295f8b38933c37ef4a42f446599", RUN+="/bin/sh -c 'mknod /dev/asmdisk01 b  $major $minor; chown grid:oinstall /dev/asmdisk01; chmod 0660 /dev/asmdisk01'"
+
+[root@jytest3 ~]# /sbin/udevadm trigger --type=devices --action=change

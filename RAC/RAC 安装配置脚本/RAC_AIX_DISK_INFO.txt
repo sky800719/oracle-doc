@@ -1,0 +1,83 @@
+echo 'hdisk info'
+echo '-------------------------------------------------------------'
+lspv
+
+echo ''
+echo '-------------------------------------------------------------'
+lscfg -vl hdisk*
+
+echo ''
+
+cd /dev
+
+echo 'single disk info'
+echo '-------------------------------------------------------------'
+for i in `ls hdisk*`
+do
+        echo 'disk_name:        '$i
+        echo 'reserve_info:     '`lsattr -E -l $i | grep reserve_ | awk '{print $2}'`
+        echo 'disk_prop:        '`ls -la $i`
+        echo 'disk_size:        '`bootinfo -s $i`
+        echo ''
+done
+
+echo ''
+echo 'add disk pvid'
+echo '-------------------------------------------------------------'
+for i in `ls hdisk*`
+do
+        echo '/usr/sbin/chdev -l '$i' -a pv=yes'
+done
+
+echo ''
+echo 'clear disk pvid'
+echo '-------------------------------------------------------------'
+for i in `ls hdisk*`
+do
+        echo '/usr/sbin/chdev -l '$i' -a pv=clear'
+done
+
+echo ''
+echo 'change disk reserve prop'
+echo '-------------------------------------------------------------'
+for i in `ls hdisk*`
+do
+        if [ `lsattr -E -l $i | grep reserve_ | awk '{print $1}'` = 'reserve_lock' ];
+        then
+                echo 'chdev -l '$i' -a reserve_lock=no'
+        else
+                echo 'chdev -l '$i' -a reserve_policy=no_reserve'
+        fi
+done
+
+echo ''
+echo 'make disk node'
+echo '-------------------------------------------------------------'
+for i in `ls hdisk*`
+do
+        echo $i':	mknod /dev/ASMDISK  c '`ls -la $i | awk '{print $5 $6}'`
+done
+
+echo ''
+echo 'lock disk device'
+echo '-------------------------------------------------------------'
+for i in `ls hdisk*`
+do
+        echo $i':	lkdev -l '$i' -a -c ASMDISK'
+done
+
+echo ''
+echo 'unlock disk device'
+echo '-------------------------------------------------------------'
+for i in `ls hdisk*`
+do
+        echo $i':	lkdev -l '$i' -d'
+done
+
+echo ''
+echo 'change disk privilege'
+echo '-------------------------------------------------------------'
+echo 'chown grid:asmadmin /dev/rhdisk*'
+echo 'chmod 660 /dev/rhdisk*'
+echo 'chown grid:asmadmin /dev/ASM*'
+echo 'chmod 660 /dev/ASM*'

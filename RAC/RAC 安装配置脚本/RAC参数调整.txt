@@ -1,0 +1,310 @@
+###################################################################################
+## 1. 修改数据库参数
+## 2. 调整数据文件
+## 3. 调整RMAN备份配置
+## 4. 关闭数据库资源管理
+## 5. 调整集群资源
+###################################################################################
+
+===================================================================================
+## 1. 修改数据库参数
+===================================================================================
+
+-----------------------------------------------------------------------------------
+##1.1 通用参数部分:与内存无关的通用参数调整方案
+-----------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------
+--ASM参数
+-----------------------------------------------------------------------------------
+ALTER SYSTEM SET sga_max_size=4096M SCOPE=SPFILE;
+ALTER SYSTEM SET sga_target=4096M SCOPE=SPFILE;
+ALTER SYSTEM RESET memory_max_target SCOPE=SPFILE;
+ALTER SYSTEM SET large_pool_size=512M SCOPE=SPFILE;
+ALTER SYSTEM SET pga_aggregate_target=2G SCOPE=SPFILE;
+ALTER SYSTEM SET asm_diskstring='/dev/rhdisk*' SCOPE=SPFILE;
+
+-----------------------------------------------------------------------------------
+--DB参数 11G
+-----------------------------------------------------------------------------------
+alter system set "_gby_hash_aggregation_enabled"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_gc_policy_time"=0 SCOPE=SPFILE sid='*';
+alter system set "_gc_undo_affinity"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_gc_defer_time"=3 SCOPE=SPFILE;
+alter system set "_high_priority_processes"='VKTM|LMS|LGWR' SCOPE=SPFILE sid='*';
+alter system set "_undo_autotune"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_enable_NUMA_support"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_resource_manager_always_off"=TRUE SCOPE=SPFILE sid='*';
+
+alter system set "_optim_peek_user_binds"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_optimizer_cartesian_enabled"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_optimizer_adaptive_cursor_sharing"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_optimizer_extended_cursor_sharing"='NONE' SCOPE=SPFILE sid='*';
+alter system set "_optimizer_extended_cursor_sharing_rel"='NONE' SCOPE=SPFILE sid='*';
+alter system set "_optimizer_use_feedback"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_px_use_large_pool"=TRUE SCOPE=SPFILE sid='*';
+alter system set "_use_adaptive_log_file_sync"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_memory_imm_mode_without_autosga"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_partition_large_extents"=FALSE SCOPE=SPFILE;
+alter system set event="10949 trace name context forever:28401 trace name context forever, level 1:44951 trace name context forever, level 32" SCOPE=SPFILE sid='*';
+
+alter system set parallel_execution_message_size=32768 SCOPE=SPFILE sid='*';
+alter system set parallel_force_local=TRUE SCOPE=SPFILE sid='*';
+
+alter system set deferred_segment_creation=FALSE;
+alter system set sec_case_sensitive_logon=FALSE;
+
+alter system set control_file_record_keep_time=31 SCOPE=SPFILE;
+alter system set undo_retention=3600;
+alter system set resource_manager_plan='';
+alter system set remote_login_passwordfile=NONE SCOPE=SPFILE;
+alter system set db_files=1000 SCOPE=SPFILE;
+alter system set recyclebin=off SCOPE=SPFILE;
+alter system set result_cache_max_size=0 SCOPE=SPFILE;
+
+alter profile default limit password_life_time unlimited;
+
+-----------------------------------------------------------------------------------
+--DB参数 12C
+-----------------------------------------------------------------------------------
+alter system set "_gby_hash_aggregation_enabled"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_gc_policy_time"=0 SCOPE=SPFILE sid='*';
+alter system set "_gc_undo_affinity"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_gc_defer_time"=3 SCOPE=SPFILE;
+--12C默认已经进行了调整
+--alter system set "_high_priority_processes"='VKTM|LMS|LGWR' SCOPE=SPFILE sid='*';
+alter system set "_undo_autotune"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_enable_NUMA_support"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_resource_manager_always_off"=TRUE SCOPE=SPFILE sid='*';
+
+alter system set "_optim_peek_user_binds"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_optimizer_cartesian_enabled"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_optimizer_adaptive_cursor_sharing"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_optimizer_extended_cursor_sharing"='NONE' SCOPE=SPFILE sid='*';
+alter system set "_optimizer_extended_cursor_sharing_rel"='NONE' SCOPE=SPFILE sid='*';
+alter system set "_optimizer_use_feedback"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_px_use_large_pool"=TRUE SCOPE=SPFILE sid='*';
+alter system set "_use_adaptive_log_file_sync"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_memory_imm_mode_without_autosga"=FALSE SCOPE=SPFILE sid='*';
+alter system set "_partition_large_extents"=FALSE SCOPE=SPFILE;
+alter system set event="10949 trace name context forever:28401 trace name context forever, level 1:44951 trace name context forever, level 32" SCOPE=SPFILE sid='*';
+
+alter system set parallel_execution_message_size=32768 SCOPE=SPFILE sid='*';
+alter system set parallel_force_local=TRUE SCOPE=SPFILE sid='*';
+
+alter system set deferred_segment_creation=FALSE;
+
+alter system set control_file_record_keep_time=31 SCOPE=SPFILE;
+alter system set undo_retention=3600;
+alter system set resource_manager_plan='';
+alter system set remote_login_passwordfile=NONE SCOPE=SPFILE;
+alter system set db_files=1000 SCOPE=SPFILE;
+alter system set recyclebin=off SCOPE=SPFILE;
+alter system set result_cache_max_size=0 SCOPE=SPFILE;
+
+alter profile default limit password_life_time unlimited;
+
+-----------------------------------------------------------------------------------
+--12C 新增参数
+-----------------------------------------------------------------------------------
+alter system set "_sql_plan_directive_mgmt_control"=0 SCOPE=SPFILE;
+alter system set "_optimizer_cost_based_transformation"=OFF SCOPE=SPFILE;
+alter system set "_optimizer_squ_bottomup"=FALSE SCOPE=SPFILE;
+alter system set "_rowsets_enabled"=FALSE SCOPE=SPFILE;
+alter system set "_optimizer_partial_join_eval"=FALSE SCOPE=SPFILE;
+alter system set "_optimizer_aggr_groupby_elim"=FALSE SCOPE=SPFILE;
+alter system set "_optimizer_reduce_groupby_key"=FALSE SCOPE=SPFILE;
+alter system set "_optimizer_extended_cursor_sharing"=NONE SCOPE=SPFILE;
+alter system set "_optimizer_null_accepting_semijoin"=NONE SCOPE=SPFILE;
+alter system set "_rowsets_enabled"=NONE SCOPE=SPFILE;
+alter system set "_optimizer_unnest_corr_set_subq"=FALSE SCOPE=SPFILE;
+alter system set "_optimizer_ads_use_result_cache"=FALSE SCOPE=SPFILE;
+
+alter system set "_serial_direct_read"=NEVER SCOPE=SPFILE;
+alter system set "_datafile_write_errors_crash_instance"=FALSE SCOPE=SPFILE;
+alter system set cell_offload_processing=FALSE SCOPE=SPFILE;
+alter system set "_cleanup_rollback_entries"=20000 SCOPE=SPFILE;
+alter system set "_securefiles_concurrency_estimate"=50 SCOPE=SPFILE;
+alter system set recovery_parallelism=8 SCOPE=SPFILE;
+alter system set inmemory_query=DISABLE SCOPE=SPFILE;
+alter system set "_report_capture_cycle_time"=0 SCOPE=SPFILE;
+
+
+-----------------------------------------------------------------------------------
+--PDB可以修改的参数
+-----------------------------------------------------------------------------------
+SELECT NAME,VALUE FROM V$SYSTEM_PARAMETER WHERE ISPDB_MODIFIABLE='TRUE' ORDER BY NAME;
+
+===================================================================================
+##1.2 内存相关参数
+===================================================================================
+-----------------------------------------------------------------------------------
+##内存参数调整：128G
+-----------------------------------------------------------------------------------
+alter system set sga_max_size=60G SCOPE=SPFILE sid='*';
+alter system set sga_target=0 SCOPE=SPFILE sid='*';
+alter system set db_cache_size=40G SCOPE=SPFILE sid='*';
+alter system set shared_pool_size=10G SCOPE=SPFILE sid='*';
+alter system set large_pool_size=2G SCOPE=SPFILE sid='*';
+alter system set pga_aggregate_target=10G SCOPE=SPFILE sid='*';
+alter system set session_cached_cursors=300 SCOPE=SPFILE sid='*';
+alter system set processes=5000 SCOPE=SPFILE sid='*';
+
+-----------------------------------------------------------------------------------
+##内存参数调整：256G
+-----------------------------------------------------------------------------------
+alter system set sga_max_size=120G SCOPE=SPFILE sid='*';
+alter system set sga_target=0 SCOPE=SPFILE sid='*';
+alter system set db_cache_size=80G SCOPE=SPFILE sid='*';
+alter system set shared_pool_size=20G SCOPE=SPFILE sid='*';
+alter system set large_pool_size=4G SCOPE=SPFILE sid='*';
+alter system set pga_aggregate_target=20G SCOPE=SPFILE sid='*';
+alter system set session_cached_cursors=500 SCOPE=SPFILE sid='*';
+alter system set processes=8000 SCOPE=SPFILE sid='*';
+
+===================================================================================
+## 2. 调整数据文件
+===================================================================================
+
+-----------------------------------------------------------------------------------
+2.1 Resize Datafile
+-----------------------------------------------------------------------------------
+sqlplus -S / as sysdba <<EOF
+SET TIME ON;
+SET TIMING ON;
+ALTER DATABASE DATAFILE 1 RESIZE 10G;
+ALTER DATABASE DATAFILE 2 RESIZE 10G;
+ALTER DATABASE DATAFILE 3 RESIZE 30G;
+ALTER DATABASE DATAFILE 4 RESIZE 30G;
+ALTER DATABASE TEMPFILE 1 RESIZE 30G;
+
+ALTER DATABASE DATAFILE 1 AUTOEXTEND OFF;
+ALTER DATABASE DATAFILE 2 AUTOEXTEND OFF;
+ALTER DATABASE DATAFILE 3 AUTOEXTEND OFF;
+ALTER DATABASE DATAFILE 4 AUTOEXTEND OFF;
+ALTER DATABASE TEMPFILE 1 AUTOEXTEND OFF;
+EOF
+
+-----------------------------------------------------------------------------------
+2.2 TEMP表空间扩容表空间
+-----------------------------------------------------------------------------------
+ALTER TABLESPACE TEMP ADD TEMPFILE '+DEVDBT_DATA' SIZE 30G AUTOEXTEND OFF;
+
+-----------------------------------------------------------------------------------
+2.3 UNDO表空间扩容表空间
+-----------------------------------------------------------------------------------
+ALTER TABLESPACE UNDOTBS1 ADD DATAFILE '+DEVDBT_DATA' SIZE 30G AUTOEXTEND OFF;
+
+-----------------------------------------------------------------------------------
+2.4 调整日志组文件
+-----------------------------------------------------------------------------------
+sqlplus / as sysdba
+SET TIME ON;
+SET TIMING ON;
+
+ALTER DATABASE ADD LOGFILE THREAD 1
+GROUP 5 SIZE 1G,
+GROUP 6 SIZE 1G,
+GROUP 7 SIZE 1G;
+
+ALTER DATABASE ADD LOGFILE THREAD 2
+GROUP 8 SIZE 1G,
+GROUP 9 SIZE 1G,
+GROUP 10 SIZE 1G;
+
+ALTER SYSTEM SWITCH LOGFILE;
+ALTER SYSTEM SWITCH LOGFILE;
+ALTER SYSTEM SWITCH LOGFILE;
+ALTER SYSTEM SWITCH LOGFILE;
+
+ALTER SYSTEM CHECKPOINT;
+
+SELECT GROUP#,STATUS FROM V$LOG;
+
+ALTER DATABASE DROP LOGFILE GROUP 1, GROUP 2, GROUP 3, GROUP 4;
+
+ALTER DATABASE ADD LOGFILE THREAD 1
+GROUP 1 SIZE 1G,
+GROUP 2 SIZE 1G;
+
+ALTER DATABASE ADD LOGFILE THREAD 2
+GROUP 3 SIZE 1G,
+GROUP 4 SIZE 1G;
+
+-----------------------------------------------------------------------------------
+2.5 控制文件多副本
+-----------------------------------------------------------------------------------
+alter system set control_files=${CONTROL_FILES} scope=spfile;
+
+rman target /
+startup nomount;
+restore controlfile from ${CURRENT_CONTROL_FILE};
+shutdown immediate;
+
+===================================================================================
+## 3. 调整RMAN备份配置
+===================================================================================
+sqlplus / as sysdba
+alter system set control_file_record_keep_time=31;
+
+rman target /
+RMAN> configure retention policy to recovery window of 30 days;
+RMAN> configure controlfile autobackup on;
+RMAN> configure snapshot controlfile name to '+DATADG/dbname_snap.ctl';
+
+===================================================================================
+## 4. 关闭数据库资源管理
+===================================================================================
+SELECT CLIENT_NAME,STATUS FROM DBA_AUTOTASK_CLIENT;
+
+BEGIN
+	DBMS_AUTO_TASK_ADMIN.DISABLE(client_name => 'auto space advisor', operation => NULL, window_name => NULL);
+END;
+/
+
+BEGIN
+	DBMS_AUTO_TASK_ADMIN.DISABLE(client_name => 'sql tuning advisor', operation => NULL, window_name => NULL);
+END;
+/
+
+BEGIN
+	DBMS_AUTO_TASK_ADMIN.DISABLE(client_name => 'auto optimizer stats collection', operation => NULL, window_name => NULL);
+END;
+/
+
+execute dbms_scheduler.set_attribute('WEEKNIGHT_WINDOW','RESOURCE_PLAN',''); 
+execute dbms_scheduler.set_attribute('WEEKEND_WINDOW','RESOURCE_PLAN',''); 
+execute dbms_scheduler.set_attribute('MONDAY_WINDOW','RESOURCE_PLAN',''); 
+execute dbms_scheduler.set_attribute('TUESDAY_WINDOW','RESOURCE_PLAN',''); 
+execute dbms_scheduler.set_attribute('WEDNESDAY_WINDOW','RESOURCE_PLAN',''); 
+execute dbms_scheduler.set_attribute('THURSDAY_WINDOW','RESOURCE_PLAN',''); 
+execute dbms_scheduler.set_attribute('FRIDAY_WINDOW','RESOURCE_PLAN',''); 
+execute dbms_scheduler.set_attribute('SATURDAY_WINDOW','RESOURCE_PLAN',''); 
+execute dbms_scheduler.set_attribute('SUNDAY_WINDOW','RESOURCE_PLAN','');
+
+===================================================================================
+## 5. 调整集群资源
+===================================================================================
+
+--集群资源调整
+--降低vip资源对网络的依赖
+./crsctl modify res ora.tytsdb1.vip -attr "STOP_DEPENDENCIES=hard(intermediate:ora.net1.network)"
+./crsctl modify res ora.tytsdb2.vip -attr "STOP_DEPENDENCIES=hard(intermediate:ora.net1.network)"
+./crsctl modify res ora.scan1.vip -attr "STOP_DEPENDENCIES=hard(intermediate:ora.net1.network)"
+./crsctl modify resource ora.net1.network -attr "CHECK_INTERVAL=30"
+
+--修改资源为总是启动
+./crsctl modify resource "ora.LISTENER.lsnr" -attr "AUTO_START=always"
+./crsctl modify resource "ora.jsdb.db" -attr "AUTO_START=always"
+
+--关闭crf (root)
+./crsctl modify res ora.crf -attr "AUTO_START=never" -init 
+./crsctl modify res ora.crf -attr "ENABLED=0" -init
+./crsctl stop res ora.crf -init
+
+--禁用cvu (root)
+./srvctl stop cvu
+./srvctl disable cvu
+
+./srvctl stop qosmserver
+./srvctl disable qosmserver
+

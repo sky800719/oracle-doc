@@ -1,0 +1,373 @@
+27282436 = 27107360 (PSU) + 26925532 (OJVM)
+#########################################################################################################################
+##参考下面的步骤在一个节点上安装补丁 27107360 (PSU)，数据库完全停止后，可以在两个节点同时安装
+#########################################################################################################################
+
+-------------------------------------------------------------------------------------------------------------------------
+0.为了避免安装补丁运行数据字典脚本时与系统后台作业冲突，查看AutoTask，如果有Enabled的，先Disable，打完补丁后再Enable.
+-------------------------------------------------------------------------------------------------------------------------
+
+su - oracle
+sqlplus "/as sysdba"
+set lin 180 pages 10000
+COL CLIENT_NAME FORMAT A40
+COL CONSUMER_GROUP FORMAT A30
+COL WINDOW_GROUP FORMAT A30
+select CLIENT_NAME,STATUS,CONSUMER_GROUP,WINDOW_GROUP from dba_autotask_client;
+
+CLIENT_NAME                              STATUS   CONSUMER_GROUP                 WINDOW_GROUP
+---------------------------------------- -------- ------------------------------ ------------------------------
+auto optimizer stats collection          ENABLED  ORA$AUTOTASK_STATS_GROUP       ORA$AT_WGRP_OS
+auto space advisor                       DISABLED ORA$AUTOTASK_SPACE_GROUP       ORA$AT_WGRP_SA
+sql tuning advisor                       DISABLED ORA$AUTOTASK_SQL_GROUP         ORA$AT_WGRP_SQ
+
+BEGIN
+DBMS_AUTO_TASK_ADMIN.DISABLE(
+client_name => 'auto optimizer stats collection', 
+operation => NULL, 
+window_name => NULL);
+END;
+/
+
+BEGIN
+DBMS_AUTO_TASK_ADMIN.DISABLE(
+client_name => 'auto space advisor', 
+operation => NULL, 
+window_name => NULL);
+END;
+/
+
+BEGIN
+DBMS_AUTO_TASK_ADMIN.DISABLE(
+client_name => 'sql tuning advisor', 
+operation => NULL, 
+window_name => NULL);
+END;
+/
+
+再确认当前的数据库组件状态是否都正常，并记录当前状态：
+set lin 170 pages 10000
+select comp_id,status,version from dba_registry;
+
+
+COMP_ID                        STATUS                 VERSION
+------------------------------ ---------------------- ------------------------------
+OWB                            VALID                  11.2.0.4.0
+APEX                           VALID                  3.2.1.00.12
+EM                             VALID                  11.2.0.4.0
+AMD                            VALID                  11.2.0.4.0
+SDO                            VALID                  11.2.0.4.0
+ORDIM                          VALID                  11.2.0.4.0
+XDB                            VALID                  11.2.0.4.0
+CONTEXT                        VALID                  11.2.0.4.0
+EXF                            VALID                  11.2.0.4.0
+RUL                            VALID                  11.2.0.4.0
+OWM                            VALID                  11.2.0.4.0
+CATALOG                        VALID                  11.2.0.4.0
+CATPROC                        VALID                  11.2.0.4.0
+JAVAVM                         VALID                  11.2.0.4.0
+XML                            VALID                  11.2.0.4.0
+CATJAVA                        VALID                  11.2.0.4.0
+APS                            VALID                  11.2.0.4.0
+XOQ                            VALID                  11.2.0.4.0
+RAC                            VALID                  11.2.0.4.0
+
+19 rows selected.
+
+-------------------------------------------------------------------------------------------------------------------------
+1.以grid用户停止listener，并kill数据库会话进程
+-------------------------------------------------------------------------------------------------------------------------
+
+su - grid
+srvctl stop listener
+srvctl stop scan_listener
+kill -9 `ps -ef|grep LOCAL=NO|grep -v grep|grep -iv ASM|awk '{print $2}'`
+
+-------------------------------------------------------------------------------------------------------------------------
+2.以oracle用户禁用db自动启动，然后停止db
+-------------------------------------------------------------------------------------------------------------------------
+
+su - oracle
+srvctl disable db -d pubdb
+srvctl stop db -d pubdb
+
+-------------------------------------------------------------------------------------------------------------------------
+3.（该步骤已经提前执行完成）以root用户替换opatch工具到最新版本
+-------------------------------------------------------------------------------------------------------------------------
+
+su - root
+cat /home/oracle/.profile | grep HOME
+export PATCH_DIR=/oracle/software
+export PATCH_GRID_HOME=/grid/app/11.2.0.4/grid
+export PATCH_ORACLE_HOME=/oracle/app/oracle/11.2.0.4/db_1
+mv $PATCH_GRID_HOME/OPatch $PATCH_GRID_HOME/Opatch.orig`date +%Y%m%d`
+mv $PATCH_ORACLE_HOME/OPatch $PATCH_ORACLE_HOME/OPatch.orig`date +%Y%m%d`
+
+cd $PATCH_DIR
+unzip p6880880_112000_HPUX-IA64.zip
+cp -r ./OPatch $PATCH_GRID_HOME/
+cp -r ./OPatch $PATCH_ORACLE_HOME/
+cd $PATCH_GRID_HOME/; chown -R grid:oinstall ./OPatch
+cd $PATCH_ORACLE_HOME/; chown -R oracle:oinstall ./OPatch
+
+-------------------------------------------------------------------------------------------------------------------------
+4.按照下面的步骤安装补丁
+-------------------------------------------------------------------------------------------------------------------------
+
+su - oracle
+export PATCH_DIR=/oracle/software
+
+cd $ORACLE_HOME/OPatch/ocm/bin
+./emocmrsp -output /tmp/ocm.rsp
+
+cd $PATCH_DIR
+unzip p27282436_112040_HPUX-IA64.zip
+
+su - root
+-------------------------------------------------------------------------------------------------------------------------
+a.检查root用户的环境变量，如果有ORACLE_HOME,ORA_GRID_HOME,GRID_HOME等设置，需要注销这些环境变量，然后重新登录系统；
+b.检查安装crs和db的文件系统空间是否足够，打补丁前至少要保证50G空闲空间；
+c.检查root/grid/oracle用户的crontab作业，打补丁前先注销访问$ORACLE_HOME和$GRID_HOME的作业，打完补丁后再启用
+d.查看是否有未注册到OCR里的grid/oracle独立进程，例如其他的listener，通过kill -9 杀掉这些进程；如果不确定哪些进程是独立的
+  ，可以考虑先停止CRS后再重新拉起来，然后执行后续的步骤
+-------------------------------------------------------------------------------------------------------------------------
+
+su - root
+export PATCH_DIR=/oracle/software
+export PATCH_GRID_HOME=/grid/app/11.2.0.4/grid
+export PATCH_ORACLE_HOME=/oracle/app/oracle/11.2.0.4/db_1
+export PSU_PATCH_ID=27282436/27107360
+
+# $PATCH_GRID_HOME/OPatch/opatch auto $PATCH_DIR/$PSU_PATCH_ID -oh $PATCH_GRID_HOME -ocmrf /tmp/ocm.rsp
+# $PATCH_ORACLE_HOME/OPatch/opatch auto $PATCH_DIR/$PSU_PATCH_ID -oh $PATCH_ORACLE_HOME -ocmrf /tmp/ocm.rsp
+
+
+------------------------------------------------------------------------
+# 报错处理
+Opatch version check failed for oracle home  /grid/app/11.2.0.4/grid
+Opatch version  check failed
+ERROR: update the opatch version for the failed homes and retry
+
+ UtilSession failed: IPMRWServices::verifyPatchStorageDirectory() cannot read or write to /grid/app/11.2.0.4/grid/.patch_storage
+ 
+ OPatch failed with error code 73
+ 
+CRMAPP3#[/]#cd /grid/app/11.2.0.4/grid/
+CRMAPP3#[/grid/app/11.2.0.4/grid]#mkdir .patch_storage
+CRMAPP3#[/grid/app/11.2.0.4/grid]#chown grid:oinstall .patch_storage
+------------------------------------------------------------------------
+
+ 
+----------以下脚本用于补丁回滚操作----------
+######### $PATCH_GRID_HOME/OPatch/opatch auto $PATCH_DIR/$PSU_PATCH_ID -rollback -oh $PATCH_GRID_HOME -ocmrf /tmp/ocm.rsp
+######### $PATCH_ORACLE_HOME/OPatch/opatch auto $PATCH_DIR/$PSU_PATCH_ID -rollback -oh $PATCH_ORACLE_HOME -ocmrf /tmp/ocm.rsp
+
+su - grid
+$ORACLE_HOME/OPatch/opatch lsinv
+
+su - oracle
+$ORACLE_HOME/OPatch/opatch lsinv
+
+#########################################################################################################################
+##参考下面的步骤在一个节点上安装补丁25434033 (OJVM)，数据库完全停止后，可以在两个节点同时安装
+#########################################################################################################################
+
+1.以oracle用户为$PATCH_ORACLE_HOME安装该补丁：
+
+su - oracle	
+export PATCH_DIR=/grid/software
+
+srvctl stop db -d pubdb
+
+cd $PATCH_DIR/25440422/25434033
+$ORACLE_HOME/OPatch/opatch apply -local
+
+$ORACLE_HOME/OPatch/opatch lsinv
+
+#########################################################################################################################
+##参考下面的步骤在一个节点上安装补丁23727132，数据库完全停止后，可以在两个节点同时安装
+#########################################################################################################################
+
+1.为<GIRD_HOME>安装该补丁：
+
+su - root
+$PATCH_GRID_HOME/crs/install/rootcrs.pl -unlock 
+
+su - grid
+cd $PATCH_DIR
+unzip p23727132_112040_Generic.zip
+
+cd $PATCH_DIR/23727132
+$ORACLE_HOME/OPatch/opatch apply -local
+
+su - root
+$PATCH_GRID_HOME/crs/install/rootcrs.pl -patch	
+
+su - grid
+$ORACLE_HOME/OPatch/opatch lsinv
+
+#########################################################################################################################
+##参考下面的步骤在一个节点上安装补丁13904435，数据库完全停止后，可以在两个节点同时安装
+#########################################################################################################################
+
+1.为<GIRD_HOME>安装该补丁：
+
+su - root
+$PATCH_GRID_HOME/crs/install/rootcrs.pl -unlock 
+
+su - grid
+cd $PATCH_DIR
+unzip p13904435_112046_HPUX-IA64.zip
+
+cd $PATCH_DIR/13904435
+$ORACLE_HOME/OPatch/opatch apply -local
+
+su - oracle
+cd $PATCH_DIR/13904435
+$ORACLE_HOME/OPatch/opatch apply -local
+
+su - root
+$PATCH_GRID_HOME/crs/install/rootcrs.pl -patch	
+
+su - grid
+$ORACLE_HOME/OPatch/opatch lsinv
+
+su - oracle
+$ORACLE_HOME/OPatch/opatch lsinv
+
+#########################################################################################################################
+##以下步骤必须在所有节点都完成上面的4个补丁的安装后再执行
+#########################################################################################################################
+1.补丁安装完后，以grid用户停止监听，然后以oracle用户登录其中一个节点启动数据库，运行数据字典脚本
+
+su - grid
+srvctl disable listener
+srvctl disable scan_listener
+
+srvctl stop listener
+srvctl stop scan_listener
+
+lsnrctl stop
+
+su - oracle
+The following steps load RDBMS PSU modified SQL files into the database. For an Oracle RAC environment, perform these steps on only one node.
+export ORACLE_SID=<ORACLE_SID>
+
+sqlplus /nolog
+SQL> CONNECT / AS SYSDBA
+SQL> STARTUP
+SQL> @?/rdbms/admin/catbundle.sql psu apply
+
+SQL> SELECT * FROM dba_registry_history;
+
+SQL> QUIT
+
+If the OJVM PSU was applied for a previous GI PSU patch, you may see invalid Java classes after execution of the catbundle.sql script in the previous step. If this is the case, run utlrp.sql to re-validate these Java classes.
+
+
+sqlplus /nolog
+SQL> CONNECT / AS SYSDBA
+SQL> @?/rdbms/admin/utlprp.sql 4
+Check the following log files in $ORACLE_BASE/cfgtoollogs/catbundle for any errors:
+
+catbundle_PSU_<database SID>_APPLY_<TIMESTAMP>.log
+catbundle_PSU_<database SID>_GENERATE_<TIMESTAMP>.log
+
+###This patch now includes the OJVM Mitigation patch (Patch:19721304). 
+###If an OJVM PSU is installed or planned to be installed, no further actions are necessary. 
+###Otherwise, the workaround of using the OJVM Mitigation patch can be activated. 
+###As SYSDBA do the following from the admin directory:
+###SQL > @dbmsjdev.sql
+###SQL > exec dbms_java_dev.disable
+
+###1.Install the SQL portion of the patch by running the following command for a single instance environment.
+###
+###sqlplus /nolog
+###SQL> CONNECT / AS SYSDBA
+###SQL> shutdown immediate
+###SQL> startup upgrade
+###SQL> @?/sqlpatch/25434033/postinstall.sql
+###SQL> shutdown
+###SQL> startup
+
+1.The following steps load OJVM PSU modified SQL files into the database. For an Oracle RAC environment, perform these steps on only one node.
+
+sqlplus /nolog
+SQL> CONNECT / AS SYSDBA
+SQL> alter system set cluster_database=false scope=spfile;
+SQL> shutdown immediate;
+SQL> STARTUP UPGRADE
+SQL> @?/sqlpatch/25434033/postinstall.sql
+SQL> alter system set cluster_database=true scope=spfile;
+SQL> shutdown immediate;
+SQL> STARTUP 
+
+After installing the SQL portion of the patch, some packages could become INVALID. This will get recompiled upon access or you can run utlrp.sql to get them back into a VALID state.
+
+sqlplus /nolog
+SQL> CONNECT / AS SYSDBA
+SQL> @?/rdbms/admin/utlprp.sql 4
+SQL> set lin 170 pages 10000
+SQL> select comp_id,status,version from dba_registry;
+SQL> SELECT * FROM dba_registry_history;
+SQL> shutdown immediate;
+
+2. 以oracle用户重新enable数据库的自动启动，并启动数据库
+
+su - oracle
+srvctl enable db -d pubdb
+srvctl start db -d pubdb
+
+3. 以oracle用户重新enable之前被disabled的AutoTask，如果某个AutoTask最初的状态就是disabled，则保持最初状态，无需enable
+su - oracle
+sqlplus "/as sysdba"
+COL CLIENT_NAME FORMAT A40
+COL CONSUMER_GROUP FORMAT A30
+COL WINDOW_GROUP FORMAT A30
+select CLIENT_NAME,STATUS,CONSUMER_GROUP,WINDOW_GROUP from dba_autotask_client;
+
+BEGIN
+DBMS_AUTO_TASK_ADMIN.ENABLE('auto optimizer stats collection',null,null);
+END;
+/
+
+BEGIN
+DBMS_AUTO_TASK_ADMIN.ENABLE('auto space advisor',null,null);
+END;
+/
+
+BEGIN
+DBMS_AUTO_TASK_ADMIN.ENABLE('sql tuning advisor',null,null);
+END;
+/
+
+4. 以grid用户重新enable listener/scan_listener的自动启动，并启动这些监听
+
+su - grid
+srvctl enable listener
+srvctl enable scan_listener
+
+srvctl start listener
+srvctl start scan_listener
+
+lsnrctl start
+
+#########################################################################################################################
+##注意事项
+#########################################################################################################################
+
+如果启动数据库时遇到无法找到spfile,controlfile等读写权限问题，需要确认$RDBMS_HOME/bin/oracle文件的属主是否是oracle:oinstall，
+如果是，则执行如下步骤：
+
+su - root
+crsctl stop crs
+
+su - grid
+cd $ORACLE_HOME/bin
+./setasmgidwrap o=$PATCH_ORACLE_HOME/bin/oracle
+
+grid@CRMTSTDB:[$PATCH_GRID_HOME/bin]ls -l $PATCH_GRID_HOME/bin/oracle
+-rwsr-s--x   1 grid       oinstall   222955304 May 11 17:20 $PATCH_GRID_HOME/bin/oracle
+
+oracle@CRMTSTDB:[/home/oracle]ls -l /oracle/app/oracle/11.2.0.4/bin/oracle
+-rwsr-s--x   1 oracle     asmadmin   246247856 May 11 17:47 /oracle/app/oracle/11.2.0.4/bin/oracle
